@@ -1,0 +1,4 @@
+general:
+  commit_message: "integration test"
+repositories:
+  - brokenpip3/ansel

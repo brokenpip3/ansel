@@ -1,0 +1,144 @@
+# Ansel Configuration Example
+# This file demonstrates ALL supported configuration options.
+
+general:
+  # NOTE: Any option in this 'general' block (except 'vars') can be overridden
+  # by environment variables prefixed with ANSEL_ (e.g. ANSEL_COMMIT_MESSAGE)
+
+  # [Optional] The message used for all git commits made by Ansel
+  # Default: "update via ansel"
+  # Supports Jinja2 variables: {{ template_name }}, {{ repo_name }}, {{ branch }}
+  commit_message: "chore(ansel): update {{ template_name }} in {{ repo_name }}"
+
+  # [Optional] The target branch if not specified per-repository
+  # Default: "main"
+  default_branch: main
+
+  # [Optional] Compact Org Defaults: If set, repo shortcuts don't need the org prefix
+  # Default: None
+  gh_org: "brokenpip3"
+  gitlab_org: "brokenpip3"
+
+  # [Optional] GitHub CLI integration
+  # If true, uses 'gh' command for scanning (detects private repos)
+  # Default: false
+  gh_cli: true
+
+  # [Optional] Automatic pre-commit support
+  # If true, runs 'pre-commit install' and 'pre-commit run' before pushing
+  # Default: false
+  use_pre_commit: true
+
+  # [Optional] Hooks to run after applying templates but before pushing
+  # 1. Built-in hooks: 'pre-commit', 'check-yaml', 'check-toml'
+  # 2. Scripts in the ./hooks/ directory (auto-discovered if executable)
+  # 3. Inline commands (starting with !cmd)
+  # Default: []
+  hooks:
+    - pre-commit
+    - check-yaml
+    - my-custom-lint # Discovered from ./hooks/my-custom-lint.sh
+    - name: notify
+      run: "!cmd echo 'Sync complete for {{ repo_name }}'"
+      allow_failure: true
+
+  # [Optional] Persistence directory for git clones
+  # Default: A system temporary directory
+  workdir: ./_ansel_cache
+
+  # [Optional] Global variables available to all templates and patches
+  # Default: {}
+  vars:
+    org_name: "my-organization"
+    # Environment variable resolution with fallback: ${VAR:-default}
+    github_token: "${GITHUB_TOKEN:-anonymous}"
+    # Dynamic variables: execute a command and use its output
+    myname: "!cmd whoami"
+    # Interpolation of other variables
+    interpolation: "Hello, {{ myname }} from {{ org_name }}"
+
+# List of target repositories (can be a list or a dict)
+repositories:
+  # 1. GitHub Organization Discovery
+  # Automatically expands to all repositories of 'your-org' (including private if gh_cli is true)
+  - your-org/*
+
+  # 2. Simple list (Implicitly resolves via gh_org: git@github.com:brokenpip3/infra.git)
+  - infra:
+      groups: [infrastructure, internal]
+
+  # 3. Implicit GitHub (detected by /: git@github.com:other-org/tool.git)
+  - other-org/tool:
+      groups: [frontend, public]
+
+  # 4. Explicit definition for more options (GitLab, custom SSH, etc)
+  - web-app:
+      url: "https://gitlab.com/org/web-app.git"
+      groups: [frontend, react]
+      branch: "develop"
+
+# List of files/patches to propagate (can be a list or a dict)
+templates:
+  # 1. Standard Template
+  # Only applied to repositories in the 'frontend' group
+  - README.md:
+      description: "Global README"
+      groups: [frontend]
+      skip_repos: [experimental-repo] # Exclusion list
+
+  # 2. Structural YAML Patch
+  # Targets all workflows and surgically updates a specific step
+  - fix-nix-version:
+      type: patch
+      include: [".github/workflows/*.yml"]
+      vars:
+        new_version: "v32"
+      operations:
+        - engine: yaml
+          select: "**" # Recursive search (default if omitted)
+          where:
+            uses: "cachix/install-nix-action*"
+          update:
+            # Supports Jinja2 interpolation
+            uses: "cachix/install-nix-action@{{ new_version }}"
+            with:
+              myvar: "{{ interpolation }}"
+
+  # 3. Surgical Removal
+  # Removes specific keys or entire blocks while preserving comments/style
+  - cleanup-legacy:
+      type: patch
+      include: [".github/workflows/*.yml"]
+      operations:
+        # Example A: Removing a specific key from a matched block
+        - engine: yaml
+          where: { uses: "actions/checkout@v2" }
+          delete: ["with"]
+
+        # Example B: Removing an entire block (e.g. a legacy step)
+        - engine: yaml
+          select: "jobs.*.steps.*"
+          where: { name: "Legacy Cleanup Task" }
+          delete: true
+
+  # 4. Structural TOML Patch
+  # Updates a dependency in any group within pyproject.toml
+  - update-dependencies:
+      type: patch
+      include: ["pyproject.toml"]
+      skip_groups: [internal]
+      operations:
+        - engine: toml
+          select: "**"
+          where:
+            requests: "*"
+          update:
+            requests: "^2.31.0"
+
+  # 5. Legacy/Regex Patch
+  # Best for non-structural files or complex regex matches
+  - package.json:
+      type: patch
+      patches:
+        - search: '"version": ".*"'
+          replace: '"version": "1.0.0"'

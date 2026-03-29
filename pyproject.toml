@@ -1,0 +1,48 @@
+[tool.poetry]
+name = "ansel"
+version = "0.2.0"
+description = "don't leave crumbs in the woods"
+authors = ["brokenpip3 <brokenpip3@gmail.com>"]
+license = "MIT"
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.11"
+click = "^8.1.8"
+gitpython = "^3.1.44"
+jinja2 = "^3.1.6"
+ruamel-yaml = "^0.18.0"
+tomlkit = "^0.13.0"
+pydantic = "^2.11.7"
+pydantic-settings = "^2.10.1"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.3.5"
+pytest-cov = "^7.0.0"
+
+[tool.poetry.scripts]
+ansel = "ansel.cli:cli"
+
+[tool.pytest.ini_options]
+pythonpath = ["ansel"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+[tool.mypy]
+ignore_missing_imports = true
+follow_imports_for_stubs = true
+disallow_untyped_defs = false
+
+[tool.coverage.run]
+relative_files = true
+omit = [".venv"]
+
+[tool.coverage.report]
+fail_under = 80
+skip_empty = true
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
