@@ -8,7 +8,7 @@ on:
 
 jobs:
   smoke-test:
-    name: smoke test (${{ matrix.os }}) on py ${{ matrix.python-version }}
+    name: smoke test (${{ matrix.os }}) on py ${{ matrix.python-version }} via ${{ matrix.install-source }}
     runs-on: ${{ matrix.os }}
     defaults:
       run:
@@ -18,6 +18,7 @@ jobs:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
         python-version: ["3.13", "3.12", "3.11"]
+        install-source: [local, pypi]
 
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
@@ -28,17 +29,23 @@ jobs:
           python-version: ${{ matrix.python-version }}
 
       - name: Install Poetry
+        if: matrix.install-source == 'local'
         uses: snok/install-poetry@76e04a911780d5b312d89783f7b1cd627778900a # v1
         with:
           virtualenvs-create: true
           virtualenvs-in-project: true
 
       - name: Build Wheel
+        if: matrix.install-source == 'local'
         run: poetry build
 
-      - name: Install Wheel
-        run: |
-          pip install dist/*.whl
+      - name: Install local Wheel
+        if: matrix.install-source == 'local'
+        run: pip install dist/*.whl
+
+      - name: Install from PyPI
+        if: matrix.install-source == 'pypi'
+        run: pip install ansel-cli
 
       - name: Smoke Test - Version
         run: ansel version
