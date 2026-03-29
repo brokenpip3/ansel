@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "ansel-cli"
-version = "0.2.1"
+version = "0.2.2"
 description = "don't leave crumbs in the woods"
 authors = ["brokenpip3 <brokenpip3@gmail.com>"]
 license = "MIT"
