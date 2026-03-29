@@ -1,7 +1,6 @@
 # Ansel
 
 Ansel is a minimalistic CLI tool designed to manage boilerplate and shared configuration across multiple git repositories.
-pening the PR page in your browser.
 
 https://github.com/user-attachments/assets/8e95268e-8aa7-4742-b7f6-b8d08ec183e2
 
