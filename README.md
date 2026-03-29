@@ -38,7 +38,7 @@ pip install ansel-cli
 - With Nix:
 
 ```bash
-nix run|shell github:brokenpip3/ansel
+nix run github:brokenpip3/ansel/0.2.2
 ```
 
 ## Quick Start
