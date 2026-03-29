@@ -56,6 +56,9 @@
             format = "pyproject";
             nativeBuildInputs = [ pkgs.python3Packages.poetry-core ];
             propagatedBuildInputs = deps pkgs.python3Packages;
+            meta = {
+              mainProgram = "ansel";
+            };
           };
           default = self.packages.${system}.ansel;
         };
@@ -75,7 +78,7 @@
               pkgs-rolling.gemini-cli
             ];
           PYTHONDONTWRITEBYTECODE = 1;
-          POETRY_VIRTUALENVS_IN_PROJECT=true;
+          POETRY_VIRTUALENVS_IN_PROJECT = true;
         };
       }
     );

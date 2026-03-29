@@ -141,9 +141,10 @@ def _generate_changes(
 
 def get_version() -> str:
     import importlib.metadata
+    from pathlib import Path
 
     try:
-        return importlib.metadata.version("ansel")
+        return importlib.metadata.version("ansel-cli")
     except importlib.metadata.PackageNotFoundError:
         # Fallback for development: try to read from pyproject.toml
         try:
@@ -153,8 +154,9 @@ def get_version() -> str:
             if pyproject_path.exists():
                 data = tomlkit.parse(pyproject_path.read_text())
                 return str(data["tool"]["poetry"]["version"])
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"Fallback parsing failed: {e}")
+
         return "0.0.0-dev"
 
 
