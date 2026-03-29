@@ -75,6 +75,7 @@
               pkgs-rolling.gemini-cli
             ];
           PYTHONDONTWRITEBYTECODE = 1;
+          POETRY_VIRTUALENVS_IN_PROJECT=true;
         };
       }
     );

@@ -11,3 +11,6 @@ coverage:
 
 pre-commit:
     {{NIX}} pre-commit run --show-diff-on-failure
+
+build:
+    {{NIX}} poetry install --no-interaction --no-root && poetry build

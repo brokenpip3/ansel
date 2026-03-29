@@ -1,0 +1,27 @@
+name: pypi-publish
+
+on:
+  workflow_dispatch:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+jobs:
+  pypi-publish:
+    name: Upload release to PyPI
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/ansel-cli
+    permissions:
+      id-token: write
+    steps:
+    - uses: NixOS/nix-installer-action@228d8a956062db04221c97c2794ea443194824aa
+    - name: Check out code
+      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+    - name: build
+      run: nix develop . --command just build
+    - name: Publish package distributions to PyPI
+      uses: pypa/gh-action-pypi-publish@106e0b0b7c337fa67ed433972f777c6357f78598 # v1.13.0
