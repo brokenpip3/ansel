@@ -4,6 +4,7 @@ from typing import Dict
 from typing import List
 
 from ansel.config import TemplateConfig
+from ansel.patch.engines.json import JsonPatchEngine
 from ansel.patch.engines.regex import RegexPatchEngine
 from ansel.patch.engines.toml import TomlPatchEngine
 from ansel.patch.engines.yaml import YamlPatchEngine
@@ -15,6 +16,7 @@ class PatchManager:
             "yaml": YamlPatchEngine(),
             "toml": TomlPatchEngine(),
             "regex": RegexPatchEngine(),
+            "json": JsonPatchEngine(),
         }
 
     def apply(

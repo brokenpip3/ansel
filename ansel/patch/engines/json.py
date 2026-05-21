@@ -1,24 +1,17 @@
 import copy
 import fnmatch
 import io
+import json
 from pathlib import Path
 from typing import Any
 from typing import Dict
 from typing import List
 from typing import Tuple
 
-from ruamel.yaml import YAML
-
 from ansel.patch.engines.base import BaseEngine
 
 
-class YamlPatchEngine(BaseEngine):
-    def __init__(self):
-        self.yaml = YAML()
-        self.yaml.preserve_quotes = True
-        self.yaml.width = 4096
-        self.yaml.indent(mapping=2, sequence=2, offset=0)
-
+class JsonPatchEngine(BaseEngine):
     def apply(
         self,
         file_path: Path,
@@ -28,27 +21,34 @@ class YamlPatchEngine(BaseEngine):
         from ansel.template import render_string
 
         content = file_path.read_text()
-        styles = [(2, 2, 0), (2, 4, 2)]
+
+        styles = [None, 2, 4, "\t"]
         best_data = None
-        best_yaml = None
+        best_indent = None
         min_reformat_lines = float("inf")
 
-        for m, s, o in styles:
-            yaml_inst = YAML()
-            yaml_inst.preserve_quotes = True
-            yaml_inst.width = 4096
-            yaml_inst.indent(mapping=m, sequence=s, offset=o)
+        try:
+            data = json.loads(content)
+        except json.JSONDecodeError:
+            return False
+
+        for style in styles:
             try:
-                # We MUST load fresh for every style to ensure correctly detected state
-                data = yaml_inst.load(content)
                 out = io.StringIO()
-                yaml_inst.dump(data, out)
+                if style is None:
+                    # By default python's json.dump uses (', ', ': ') separators when indent=None
+                    json.dump(data, out, indent=style)
+                else:
+                    json.dump(data, out, indent=style)
+
+                out_val = out.getvalue()
+                if content.endswith("\n"):
+                    out_val += "\n"
+
                 import difflib
 
                 diff = list(
-                    difflib.unified_diff(
-                        content.splitlines(), out.getvalue().splitlines()
-                    )
+                    difflib.unified_diff(content.splitlines(), out_val.splitlines())
                 )
                 changes = len(
                     [
@@ -59,26 +59,17 @@ class YamlPatchEngine(BaseEngine):
                 )
                 if changes < min_reformat_lines:
                     min_reformat_lines = changes
-                    best_data = data
-                    best_yaml = yaml_inst
+                    best_data = json.loads(content)  # fresh load
+                    best_indent = style
             except Exception:
                 continue
 
         if best_data is None:
-            best_yaml = YAML()
-            best_yaml.preserve_quotes = True
-            best_yaml.width = 4096
-            best_data = best_yaml.load(content)
+            best_data = json.loads(content)
 
         def render_recursive(val: Any) -> Any:
             if isinstance(val, str):
-                ends_with_newline = val.endswith("\n")
-                rendered = render_string(val, vars_dict)
-                # Jinja2 strips trailing newlines; restore them if the
-                # original value had one (e.g. from YAML literal blocks).
-                if ends_with_newline and not rendered.endswith("\n"):
-                    rendered += "\n"
-                return rendered
+                return render_string(val, vars_dict)
             if isinstance(val, dict):
                 return {k: render_recursive(v) for k, v in val.items()}
             if isinstance(val, list):
@@ -87,37 +78,19 @@ class YamlPatchEngine(BaseEngine):
 
         modified = False
         for op in operations:
-            # Default select to "**" (recursive search everywhere)
             select = op.get("select", "**")
             where = render_recursive(op.get("where", {}))
             update = render_recursive(op.get("update", {}))
-
-            # Recursively convert strings with embedded newlines to PreservedScalarString,
-            # so ruamel.yaml emits literal block scalars (|) instead of plain scalars.
-            def _preserve_literal(val: Any) -> Any:
-                if isinstance(val, str) and "\n" in val:
-                    from ruamel.yaml.scalarstring import PreservedScalarString
-
-                    return PreservedScalarString(val)
-                if isinstance(val, dict):
-                    return {k: _preserve_literal(v) for k, v in val.items()}
-                if isinstance(val, list):
-                    return [_preserve_literal(i) for i in val]
-                return val
-
-            update = _preserve_literal(update)
             delete = op.get("delete")
             targets = self._find_targets(best_data, select, where)
 
-            # If we are deleting items from a list, we must do it in reverse
-            # to keep indices stable.
+            # Reverse sort list targets to maintain indices
             targets.sort(
                 key=lambda t: t[1] if isinstance(t[1], int) else 0, reverse=True
             )
 
             for parent, identifier, value in targets:
                 if delete is True:
-                    # Deleting the whole block
                     if parent is not None:
                         if isinstance(parent, dict):
                             del parent[identifier]
@@ -126,7 +99,6 @@ class YamlPatchEngine(BaseEngine):
                             parent.pop(identifier)
                             modified = True
                 elif delete:
-                    # Deleting specific keys from a dict
                     if isinstance(value, dict):
                         keys_to_del = [delete] if isinstance(delete, str) else delete
                         for k in keys_to_del:
@@ -140,7 +112,9 @@ class YamlPatchEngine(BaseEngine):
 
         if modified:
             with open(file_path, "w") as f:
-                best_yaml.dump(best_data, f)
+                json.dump(best_data, f, indent=best_indent)
+                if content.endswith("\n"):
+                    f.write("\n")
         return modified
 
     def _find_targets(
@@ -205,7 +179,7 @@ class YamlPatchEngine(BaseEngine):
 
     def _matches(self, data: Any, where: Dict[str, Any]) -> bool:
         if not where:
-            return True  # Empty where matches everything
+            return True
         if not isinstance(data, dict):
             return False
 
@@ -223,46 +197,10 @@ class YamlPatchEngine(BaseEngine):
         if isinstance(update, dict) and isinstance(target, dict):
             modified = False
             for k, v in update.items():
-                new_v = v
-                if isinstance(new_v, str) and "\n" in new_v:
-                    from ruamel.yaml.scalarstring import PreservedScalarString
-
-                    new_v = PreservedScalarString(new_v)
-                elif isinstance(new_v, (dict, list)):
-                    new_v = copy.deepcopy(new_v)
-                new_comment = None
-                if isinstance(v, str) and " #" in v:
-                    new_v, new_comment = v.split(" #", 1)
-                    new_v = new_v.strip()
-                    new_comment = f"# {new_comment.strip()}\n"
-
+                new_v = copy.deepcopy(v) if isinstance(v, (dict, list)) else v
                 if k not in target or target[k] != new_v:
                     target[k] = new_v
                     modified = True
-
-                if new_comment:
-                    if hasattr(target, "ca") and k in target.ca.items:
-                        comm_list = target.ca.items[k]
-                        if len(comm_list) > 2 and comm_list[2]:
-                            comm_list[2].value = f"{new_comment}"
-                            modified = True
-                        else:
-                            target.yaml_set_comment_before_after_key(
-                                k, after=new_comment.strip()
-                            )
-                            modified = True
-                    elif hasattr(target, "yaml_set_comment_before_after_key"):
-                        target.yaml_set_comment_before_after_key(
-                            k, after=new_comment.strip()
-                        )
-                        modified = True
-                else:
-                    # Clear existing comment if not in update
-                    if hasattr(target, "ca") and k in target.ca.items:
-                        comm_list = target.ca.items[k]
-                        if len(comm_list) > 2 and comm_list[2] is not None:
-                            comm_list[2] = None
-                            modified = True
             return modified
         elif isinstance(target, list) and isinstance(update, list):
             target.clear()

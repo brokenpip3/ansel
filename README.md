@@ -22,7 +22,7 @@ That's why I built Ansel for my needs, and I will be happy if it can save you fr
 
 - **Template propagation**: render and sync jinja2 templates (new and existing)
 - **Variable substitution**: use variables in templates and patches, values can also be defined dynamically with a command
-- **Structural patching**: update yaml and toml files (or generic regex) while preserving comments and indentation (hopefully XD)
+- **Structural patching**: update yaml, json and toml files (or generic regex) while preserving comments and indentation (hopefully XD)
 - **Hooks**: run custom scripts or built-ins (like pre-commit) per repository inside the repo context
 
 Check all the options and features in the complete example [here](./ansel-complete-example.yaml).
