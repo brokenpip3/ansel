@@ -137,3 +137,27 @@ def test_fetch_repos_with_gh_needs_login(mock_which, mock_run):
     assert mock_run.call_count == 4
     mock_run.assert_any_call(["gh", "auth", "login", "--web"], check=True)
     mock_run.assert_any_call(["gh", "auth", "logout", "--hostname", "github.com"])
+
+
+@patch("shutil.which", return_value=None)
+@patch("urllib.request.urlopen")
+@patch("urllib.request.Request")
+def test_fetch_repos_skips_archived(mock_request, mock_urlopen, mock_which):
+    mock_response = MagicMock()
+    mock_response.read.return_value = json.dumps(
+        [
+            {"full_name": "rebel-alliance/x-wing", "archived": False},
+            {"full_name": "rebel-alliance/death-star", "archived": True},
+            {"full_name": "rebel-alliance/y-wing", "archived": False},
+        ]
+    ).encode()
+    mock_response.__enter__.return_value = mock_response
+
+    mock_response_empty = MagicMock()
+    mock_response_empty.read.return_value = b"[]"
+    mock_response_empty.__enter__.return_value = mock_response_empty
+
+    mock_urlopen.side_effect = [mock_response, mock_response_empty]
+
+    repos = fetch_repos("rebel-alliance")
+    assert repos == ["rebel-alliance/x-wing", "rebel-alliance/y-wing"]

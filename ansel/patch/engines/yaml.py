@@ -1,3 +1,4 @@
+import copy
 import fnmatch
 import io
 from pathlib import Path
@@ -71,7 +72,13 @@ class YamlPatchEngine(BaseEngine):
 
         def render_recursive(val: Any) -> Any:
             if isinstance(val, str):
-                return render_string(val, vars_dict)
+                ends_with_newline = val.endswith("\n")
+                rendered = render_string(val, vars_dict)
+                # Jinja2 strips trailing newlines; restore them if the
+                # original value had one (e.g. from YAML literal blocks).
+                if ends_with_newline and not rendered.endswith("\n"):
+                    rendered += "\n"
+                return rendered
             if isinstance(val, dict):
                 return {k: render_recursive(v) for k, v in val.items()}
             if isinstance(val, list):
@@ -84,6 +91,21 @@ class YamlPatchEngine(BaseEngine):
             select = op.get("select", "**")
             where = render_recursive(op.get("where", {}))
             update = render_recursive(op.get("update", {}))
+
+            # Recursively convert strings with embedded newlines to PreservedScalarString,
+            # so ruamel.yaml emits literal block scalars (|) instead of plain scalars.
+            def _preserve_literal(val: Any) -> Any:
+                if isinstance(val, str) and "\n" in val:
+                    from ruamel.yaml.scalarstring import PreservedScalarString
+
+                    return PreservedScalarString(val)
+                if isinstance(val, dict):
+                    return {k: _preserve_literal(v) for k, v in val.items()}
+                if isinstance(val, list):
+                    return [_preserve_literal(i) for i in val]
+                return val
+
+            update = _preserve_literal(update)
             delete = op.get("delete")
             targets = self._find_targets(best_data, select, where)
 
@@ -202,6 +224,12 @@ class YamlPatchEngine(BaseEngine):
             modified = False
             for k, v in update.items():
                 new_v = v
+                if isinstance(new_v, str) and "\n" in new_v:
+                    from ruamel.yaml.scalarstring import PreservedScalarString
+
+                    new_v = PreservedScalarString(new_v)
+                elif isinstance(new_v, (dict, list)):
+                    new_v = copy.deepcopy(new_v)
                 new_comment = None
                 if isinstance(v, str) and " #" in v:
                     new_v, new_comment = v.split(" #", 1)

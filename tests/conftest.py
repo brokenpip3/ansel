@@ -10,6 +10,7 @@ from ansel.config import AnselConfig
 from ansel.config import GeneralConfig
 from ansel.config import RepositoryConfig
 from ansel.config import TemplateConfig
+from ansel.patch.engines.json import JsonPatchEngine
 from ansel.patch.engines.regex import RegexPatchEngine
 from ansel.patch.engines.toml import TomlPatchEngine
 from ansel.patch.engines.yaml import YamlPatchEngine
@@ -47,6 +48,11 @@ def yaml_engine():
 @pytest.fixture
 def toml_engine():
     return TomlPatchEngine()
+
+
+@pytest.fixture
+def json_engine():
+    return JsonPatchEngine()
 
 
 @pytest.fixture

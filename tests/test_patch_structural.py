@@ -208,3 +208,41 @@ def test_toml_patch_list_replace(tmp_path, toml_engine):
     assert "4" in content
     assert "5" in content
     assert "1" not in content
+
+
+def test_yaml_patch_multi_target_with_literal_block(tmp_path, yaml_engine):
+    content = """jobs:
+  build:
+    steps:
+      - uses: actions/checkout@v4
+      - uses: NixOS/nix-installer-action@228d8a956062db04221c97c2794ea443194824aa
+      - uses: actions/cache@v3
+      - uses: NixOS/nix-installer-action@228d8a956062db04221c97c2794ea443194824aa
+"""
+    file_path = tmp_path / "workflow.yaml"
+    file_path.write_text(content)
+
+    ops = [
+        {
+            "select": "..",
+            "where": {"uses": "NixOS/nix-installer-action@*"},
+            "update": {
+                "uses": "NixOS/nix-installer-action@6b8548fe06acfb0155a50ab5d561accb215764cc",
+                "with": {
+                    "extra-conf": "experimental-features = nix-command flakes\n"
+                },
+            },
+        }
+    ]
+
+    yaml_engine.apply(file_path, ops, {})
+
+    updated = file_path.read_text()
+    # Both matches should be updated
+    assert updated.count("nix-installer-action@6b8548fe06acfb0155a50ab5d561accb215764cc") == 2
+    assert updated.count("extra-conf:") == 2
+    # No YAML anchors/aliases
+    assert "&id" not in updated
+    assert "*id" not in updated
+    # Literal block scalar should be preserved
+    assert "extra-conf: |" in updated

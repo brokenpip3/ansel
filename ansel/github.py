@@ -25,7 +25,13 @@ def fetch_repos(org_name: str, use_gh_cli: bool = False) -> List[str]:
                         if not data:
                             break
 
-                        repos.extend([repo["full_name"] for repo in data])
+                        repos.extend(
+                            [
+                                repo["full_name"]
+                                for repo in data
+                                if not repo.get("archived", False)
+                            ]
+                        )
                         page += 1
                         found_kind = True
                 except urllib.error.HTTPError as e:
@@ -53,7 +59,7 @@ def fetch_repos(org_name: str, use_gh_cli: bool = False) -> List[str]:
                 "list",
                 org_name,
                 "--json",
-                "nameWithOwner",
+                "nameWithOwner,isArchived",
                 "--limit",
                 "10000",
             ],
@@ -63,7 +69,11 @@ def fetch_repos(org_name: str, use_gh_cli: bool = False) -> List[str]:
             return []
 
         data = json.loads(api_res.stdout.decode())
-        repos = [r["nameWithOwner"] for r in data]
+        repos = [
+            r["nameWithOwner"]
+            for r in data
+            if not r.get("isArchived", False)
+        ]
         return repos
     finally:
         if needs_logout:
